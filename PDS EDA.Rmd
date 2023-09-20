@@ -1,0 +1,189 @@
+---
+title: "PDS Intro"
+author: "Paul"
+date: "2023-09-15"
+output: pdf_document
+---
+
+
+```{r}
+library(ncdf4)
+library(ggplot2)
+library(DataExplorer)
+library(plotly)
+library(tidyverse)
+library(plotly)
+```
+
+# Load Data
+
+```{r}
+flux <- nc_open("/Users/welpp/Desktop/Practical Data Science/Data/flux")
+daily <- nc_open("/Users/welpp/Desktop/Practical Data Science/Data/daily")
+flare <- nc_open("/Users/welpp/Desktop/Practical Data Science/Data/flare")
+
+
+flux$var$xrsb_flux
+
+ncvar_get(flux, 524288)
+```
+
+https://agrimetsoft.com/faq/How%20to%20read%20and%20plot%20.nc4%20or%20.nc%20files
+
+for flux
+
+Filename --> location and name of the file
+writeable --> ???
+id --> id of the file i think
+format --> format
+is_gmt --> time reference
+
+groups --> seem to describe the general attributes of the values????
+
+natts --> number of attributes???? 47 attributes
+
+dim --> has time elements of 2409
+  time --> length of 2409, unit of "seconds since 2000-01-01 12:00:00", variables 
+    off by 1 from 725803200 to 725889599
+    why 2409???? what is this 86400
+  quad_diode --> unknown, have four levels, found to be level to measure solar flare
+  
+
+
+
+
+```{r}
+xrsb_flux <- ncvar_get(flux, varid = "xrsb_flux")
+
+x <- 1:86400
+plot(x, xrsb_flux)
+```
+
+for daily
+
+dim --> has time elements of 2409
+  time --> length of 2409, unit of "seconds since 2000-01-01 12:00:00", variables 
+    off by 86400 from 539697600 to 747748800
+    why 2409???? 86400 is a single day
+  quad_diode --> unknown, cannot be found
+
+```{r}
+daily$var$bkd1d_xrsa_flux$dim
+```
+
+
+for flare loc
+
+```{r}
+flare$var$flloc_xy$dim[[1]]$create_dimvar
+```
+
+
+
+## Flux
+
+```{r}
+time_flux <- flux$dim$time$vals
+time_unit_flux <- flux$dim$time$units
+
+var_names <- names(flux$var)
+## var_names
+
+var_names_flux <- var_names[-c(15,16)]
+## var_names_flux
+
+for (i in var_names_flux){
+  name <- paste("", i, sep = "")
+  assign(name, ncvar_get(flux, varid = i))
+}
+
+
+flux_df <- data.frame(lapply(mget(var_names_flux), as.vector))
+flux_df <- cbind(time_flux, flux_df)
+
+reference_time <- min(flux_df$time_flux)
+flux_df$time_flux <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (flux_df$time_flux)
+
+## flux_df$time_flux
+```
+
+
+
+```{r}
+gp1 <- ggplot(flux_df, aes(x = time_flux)) +
+  geom_line(aes(y = xrsa_flux), color = "red", alpha = 0.2) +
+  geom_line(aes(y = xrsa1_flux), color = "darkred", alpha = 0.2) +
+  geom_line(aes(y = xrsa2_flux), color = "salmon", alpha = 0.2) +
+  geom_line(aes(y = xrsb_flux), color = "blue", alpha = 0.2) +
+  geom_line(aes(y = xrsb1_flux), color = "darkblue", alpha = 0.2) +
+  geom_line(aes(y = xrsb2_flux), color = "lightblue", alpha = 0.2) +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+
+gp1
+
+ggplotly(gp1)
+```
+
+
+
+## Daily
+
+```{r}
+time_daily <- daily$dim$time$vals
+time_unit_daily <- daily$dim$time$units
+
+var_names_daily <- names(daily$var)
+## var_names_daily
+
+for (i in var_names_daily){
+  name <- paste("", i, sep = "")
+  assign(name, ncvar_get(daily, varid = i))
+}
+
+x <- lapply(mget(var_names), as.vector)
+
+daily_df <- data.frame(lapply(mget(var_names_daily), as.vector))
+daily_df <- cbind(time_daily, daily_df)
+
+daily_df$time_daily <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (daily_df$time_daily)
+```
+
+
+```{r}
+gp2 <- ggplot(data = daily_df, aes(x=time_daily)) +
+  geom_line(aes(y=bkd1d_xrsa_flux), color = "red", alpha = 0.2) + 
+  geom_line(aes(y=avg1d_xrsa_flux), color = "darkred", alpha = 0.2) + 
+  geom_line(aes(y=bkd1d_xrsb_flux), color = "blue", alpha = 0.2) + 
+  geom_line(aes(y=avg1d_xrsb_flux), color = "darkblue", alpha = 0.2) + 
+  theme_minimal()
+
+gp2
+
+ggplotly(gp2)
+```
+
+
+## Flare
+
+```{r}
+time_flare <- flare$dim$time$vals
+time_unit_daily <- flare$dim$time$units
+
+var_names_flare <- names(flare$var)
+## var_names_daily
+
+for (i in var_names_flare){
+  name <- paste("", i, sep = "")
+  assign(name, ncvar_get(flare, varid = i))
+}
+
+x <- lapply(mget(var_names_flare), as.vector)
+
+flare_df <- data.frame(lapply(mget(var_names), as.vector))
+flare_df <- cbind(time_flare, flare_df)
+
+
+```
+
+
