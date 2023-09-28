@@ -8,11 +8,11 @@ output: pdf_document
 
 ```{r}
 library(ncdf4)
-library(ggplot2)
 library(DataExplorer)
 library(plotly)
 library(tidyverse)
 library(plotly)
+library(data.table)
 ```
 
 # Load Data
@@ -21,66 +21,13 @@ library(plotly)
 flux <- nc_open("/Users/welpp/Desktop/Practical Data Science/Data/flux")
 daily <- nc_open("/Users/welpp/Desktop/Practical Data Science/Data/daily")
 flare <- nc_open("/Users/welpp/Desktop/Practical Data Science/Data/flare")
-
-
-flux$var$xrsb_flux
-
-ncvar_get(flux, 524288)
-```
-
-https://agrimetsoft.com/faq/How%20to%20read%20and%20plot%20.nc4%20or%20.nc%20files
-
-for flux
-
-Filename --> location and name of the file
-writeable --> ???
-id --> id of the file i think
-format --> format
-is_gmt --> time reference
-
-groups --> seem to describe the general attributes of the values????
-
-natts --> number of attributes???? 47 attributes
-
-dim --> has time elements of 2409
-  time --> length of 2409, unit of "seconds since 2000-01-01 12:00:00", variables 
-    off by 1 from 725803200 to 725889599
-    why 2409???? what is this 86400
-  quad_diode --> unknown, have four levels, found to be level to measure solar flare
-  
-
-
-
-
-```{r}
-xrsb_flux <- ncvar_get(flux, varid = "xrsb_flux")
-
-x <- 1:86400
-plot(x, xrsb_flux)
-```
-
-for daily
-
-dim --> has time elements of 2409
-  time --> length of 2409, unit of "seconds since 2000-01-01 12:00:00", variables 
-    off by 86400 from 539697600 to 747748800
-    why 2409???? 86400 is a single day
-  quad_diode --> unknown, cannot be found
-
-```{r}
-daily$var$bkd1d_xrsa_flux$dim
 ```
 
 
-for flare loc
+# Flux
 
-```{r}
-flare$var$flloc_xy$dim[[1]]$create_dimvar
-```
+## Munge & Info
 
-
-
-## Flux
 
 ```{r}
 time_flux <- flux$dim$time$vals
@@ -107,7 +54,26 @@ flux_df$time_flux <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (flux_df$time
 ## flux_df$time_flux
 ```
 
+time_flux: time (in UTC)
 
+xrsa_ <- x-ray sensor
+   0.05 to 0.4 nm (Channel A)
+    0.1 to 0.8 nm (Channel B)
+    ”1” denotes the low-irradiance sensor
+    ”2” denotes the high-irradiance sensor
+    
+_primary_chan: indicates whether XRS-A1 or XRS-A2 provides the primary irradiance values
+
+_flag: i presume flags of when it is a solar flare???? particle spikes????
+
+au_factor: The AU factor is a unitless scaling factor used to convert pixel coordinates or image measurements into physical units, such as kilometers or solar radii, when analyzing solar images taken by spacecraft. It helps in determining the size or distance of features observed on the solar disk. The actual value of the AU factor can vary depending on the specific instrument or mission, and it is often provided in the metadata of solar image data.
+
+roll_angle: The roll angle is an orientation parameter that represents the rotation of a spacecraft or satellite around its longitudinal (roll) axis. In the context of solar observations, it is used to specify the orientation of the spacecraft relative to the Sun. Solar observatories like SOHO and SDO may need to adjust their roll angle to keep the solar target within the field of view of their instruments. The roll angle is typically given in degrees and can change over time as the spacecraft orbits and reorients itself.
+
+yaw_flip_flag: The yaw flip flag is a binary indicator that denotes whether a spacecraft has undergone a yaw flip maneuver. A yaw flip maneuver is a deliberate change in the spacecraft's orientation where it flips or rotates about its radial (yaw) axis. This maneuver may be performed to maintain proper instrument orientation or for other operational reasons. The yaw flip flag helps track whether such a maneuver has occurred during a mission and can be useful for data interpretation.
+
+
+## EDA
 
 ```{r}
 gp1 <- ggplot(flux_df, aes(x = time_flux)) +
@@ -125,9 +91,21 @@ gp1
 ggplotly(gp1)
 ```
 
+```{r}
+introduce(flux_df)
+plot_intro(flux_df)
+plot_missing(flux_df)
+plot_bar(flux_df)
+plot_histogram(flux_df)
+plot_qq(flux_df)
+plot_correlation(flux_df)
+```
 
 
-## Daily
+
+# Daily
+
+## Munge & info
 
 ```{r}
 time_daily <- daily$dim$time$vals
@@ -141,14 +119,18 @@ for (i in var_names_daily){
   assign(name, ncvar_get(daily, varid = i))
 }
 
-x <- lapply(mget(var_names), as.vector)
-
 daily_df <- data.frame(lapply(mget(var_names_daily), as.vector))
 daily_df <- cbind(time_daily, daily_df)
 
 daily_df$time_daily <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (daily_df$time_daily)
 ```
 
+bkd1d: daily background and daily averages
+avg1m: XRS irradiances at 1-min cadence
+xrsa_coverage: ikely refers to the extent or range of solar X-ray emissions that a specific instrument, such as an X-ray solar spectrometer, is capable of detecting or measuring. ORRR  In some cases, "XRS Coverage" could also refer to the time coverage of X-ray observations. This would specify the duration of time during which the instrument collects data during a given observation or data collection period.
+
+
+## EDA
 
 ```{r}
 gp2 <- ggplot(data = daily_df, aes(x=time_daily)) +
@@ -164,11 +146,47 @@ ggplotly(gp2)
 ```
 
 
-## Flare
+```{r}
+introduce(daily_df)
+plot_intro(daily_df)
+plot_missing(daily_df)
+plot_bar(daily_df)
+plot_histogram(daily_df)
+plot_qq(daily_df)
+plot_correlation(daily_df)
+```
+
+
+# Flare
+
+## Munge & info
+
+```{r}
+var_names_flare <- names(flare$var)
+
+flare$var$flloc_hg$longname
+flare$var$flloc_hg$units
+
+for(i in var_names_flare){
+  print(paste0(i, ": ", flare$var[[i]]$longname, "(", flare$var[[i]]$units, ")"))
+  # print(flare$var[[i]]$longname)
+  # print(flare$var[[i]]$units)
+  # print(flare$var[[i]]$prec)
+}
+```
+
+
+Stonyhurst/heliographic (lon, lat)
+Carrington (lon, lat)
+heliocentric-radial (R, θ) 
+heliocentric Cartesian (x,y) coordinates
+The solar P-angle and apparent solar angular radius
 
 ```{r}
 time_flare <- flare$dim$time$vals
 time_unit_daily <- flare$dim$time$units
+
+time_flare <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (time_flare)
 
 var_names_flare <- names(flare$var)
 ## var_names_daily
@@ -178,12 +196,156 @@ for (i in var_names_flare){
   assign(name, ncvar_get(flare, varid = i))
 }
 
-x <- lapply(mget(var_names_flare), as.vector)
+for (i in var_names_flare){
+  if (class(mget(i)[[i]])[1] == "matrix"){
+    assign(i, t(mget(i)[[i]]))
+  }
+}
 
-flare_df <- data.frame(lapply(mget(var_names), as.vector))
-flare_df <- cbind(time_flare, flare_df)
+flare_df <- data.frame(time_flare, mget(var_names_flare))
+colnames(flare_df) <- c("time_flare", "flloc_hg_long", "flloc_hg_lat", 
+                        "flloc_car_long", "flloc_car_lat", "flloc_r", 
+                        "flloc_theta", "flloc_x", "flloc_y", "solar_p_angle", 
+                        "solar_radius", "flare_id")
 
-
+## View(flare_df)
 ```
 
+## EDA
+
+```{r}
+names(flare_df)
+
+ggplot(data = flare_df, aes(x=flloc_x, y=flloc_y)) +
+  geom_point() +
+  geom_point(aes(0,0), color = "red", size = 10) +
+  labs(title = "Map of Solar Flare Location",
+       x = "Heliocentric Cartesian (X)",
+       y = "Heliocentric Cartesian (Y)") +
+  theme_bw()
+
+ggplot(data = flare_df, aes(x=flloc_hg_lat, y=flloc_hg_long)) +
+  geom_point() +
+  geom_point(aes(0,0), color = "red", size = 10) +
+  labs(title = "Map of Solar Flare Location",
+       x = "Heliocentric Cartesian (X)",
+       y = "Heliocentric Cartesian (Y)") +
+  theme_bw()
+
+ggplot(data = flare_df, aes(x=flloc_car_lat, y=flloc_car_long)) +
+  geom_point() +
+  geom_point(aes(0,0), color = "red", size = 10) +
+  labs(title = "Map of Solar Flare Location",
+       x = "Heliocentric Cartesian (X)",
+       y = "Heliocentric Cartesian (Y)") +
+  theme_bw()
+```
+
+
+
+# NOTES::
+
+Figure out how long the flares are so that we can choose what kind of data (sec, min, hour, etc)
+
+1. Equipments
+  1. GOES -- Satelites (16,17,18) located at la grange point somewhere
+      Generally the newest satelite set as primary
+      measures flux
+      other satelites can grab and observe the data
+      1. Sensor: XRS --> X-ray sensor
+  2. SDO -- Solar Dinamics Observatory
+    1. AIA -- Camera that takes images at specific cycle of time
+2. Sun
+  Info
+    photospehere --> hot but not that hot
+    chromosphere --> target of interest
+    corona --> target of interest
+    further away, hotter it is (photo, chromo, corona from least to hottest)
+  ARS
+    Complex topography of magnetic field
+    can observe active regions because of plasma coming out
+    when flare goes off --> magnetic reconnection event
+      magnetic fields are twisting and coming together, will snap and comes
+      back together, peaks and rejoins from seconds to minutes (very quick)
+    When flare goes off, changes the magnetic field from the reconnection  
+    flares and active regions are correlated
+    location matter because "prominence?" can be directed on 3d but image is 2d
+3. Light
+  Particle and/or wave
+  Based on wavelength, see different colors and also have different energy
+    primary looking at x-ray --> high energy
+  Looking at light and its intensity (spectra)
+  flux/integrated flux
+    flux (W/m^2) (energy/sec/cm^2) --> vector field (energy per second per area)
+      energy fluctuatition included
+    integrated flux --> just integrate to get all energy amount
+      simple calculation of how much energy it sends off --> sign of flare, but
+      not sure where it would be
+      
+KEY POINT: DETECT FLARE (level of flare is a lot less important)
+  
+  
+# 7 days work
+
+## Load Data
+
+```{r}
+text <- "day"
+for (i in 1:7){
+  name <- paste0(text,i)
+  file_dir <- "/Users/welpp/Desktop/Practical Data Science/Data/Temp Data/"
+  pt1 <- "sci_xrsf-l2-flx1s_g16_d2023010"
+  ptend <- "_v2-2-0.nc"
+  file_loc <- paste0(file_dir, pt1, i, ptend)
+  # print(i)
+  # print(file_loc)
+  assign(name, nc_open(file_loc))
+}
+# print(file)
+```
+
+## to df (seconds)
+
+### function
+
+```{r}
+make_df_seconds <- function(file){
+  time_flux <- file$dim$time$vals
+  time_flux <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (time_flux)
+  time_unit_flux <- file$dim$time$units
+  
+  var_names <- names(file$var)
+  
+  var_names_file <- var_names[-c(15,16)]
+  
+  for (i in var_names_file){
+    name <- paste("", i, sep = "")
+    assign(name, ncvar_get(file, varid = i))
+  }
+  
+  
+  file_df <- data.frame(lapply(mget(var_names_file), as.vector))
+  file_df <- cbind(time_flux, file_df)
+  
+  return(file_df)
+}
+```
+
+## Comb
+
+```{r}
+# test1 <- make_df_seconds(day1)
+
+for (i in 1:7){
+  title <- paste0("df_day", i)
+  file_name <- paste0("day",i)
+  assign(title, make_df_seconds(get(file_name)))
+}
+
+df_week <- rbind(df_day1,df_day2,df_day3,df_day4,df_day5,df_day6,df_day7)
+```
+
+```{r}
+fwrite(df_week, file = "/Users/welpp/Desktop/Practical Data Science/Data/Temp Data/df_week.csv")
+```
 
