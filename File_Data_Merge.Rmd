@@ -1,0 +1,327 @@
+---
+title: "Final_Data_Merge"
+author: "Raymond Blaha"
+date: "2023-09-30"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(ncdf4)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(data.table)
+library(lubridate)
+
+
+```
+
+```{r}
+collect_variables_to_df <- function(file_path) {
+  # Open the .nc file
+  data_nc <- nc_open(file_path)
+  
+  # Extract time (assuming all variables share this same time dimension)
+  time_values <- ncvar_get(data_nc, varid = "time")
+  cat("Length of time_values:", length(time_values), "\n")
+  
+  # Extract all variable names (excluding time)
+  var_names <- setdiff(names(data_nc$var), "time")
+  
+  # Create a data frame to store the variables
+  df <- data.frame(time = time_values)
+  
+  # Initialize the 'status' column with empty strings
+  df$status <- ""
+  
+  # Loop through each variable and extract its data
+  for (var in var_names) {
+    var_values <- ncvar_get(data_nc, varid = var)
+    cat("Length of", var, ":", length(var_values), "\n")
+    
+    # Check if the lengths match before assignment
+    if (length(time_values) == length(var_values)) {
+      df[[var]] <- var_values
+    } else {
+      cat("Mismatch in lengths for variable:", var, "\n")
+    }
+  }
+  
+  # Close the .nc file
+  nc_close(data_nc)
+  
+  # Correct time
+  df$corrected_time <- as.POSIXct(df$time, origin="2000-01-01", tz="UTC")
+  
+  return(df)
+}
+
+
+
+
+
+# Extract data from the .nc files into dataframes
+file_path14 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-avg1m_g14_s20090901_e20200304_v1-0-0.nc"
+file_path14.5 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-flsum_g14_s20090901_e20200304_v1-0-0.nc"
+file_path15 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-avg1m_g15_s20100331_e20200304_v1-0-0.nc"
+file_path15.5 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-flsum_g15_s20100331_e20200304_v1-0-0.nc"
+file_path16 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-avg1m_g16_s20170207_e20230927_v2-2-0.nc"
+file_path16.5 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-flsum_g16_s20170209_e20230927_v2-2-0.nc"
+file_path17 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-avg1m_g17_s20180601_e20230110_v2-2-0.nc"
+file_path17.5 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-flsum_g17_s20180601_e20230110_v2-2-0.nc"
+file_path18 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-avg1m_g18_s20220902_e20230927_v2-2-0.nc"
+file_path18.5 <- "/Users/raymondblahajr/Desktop/PDS/Full_Data/sci_xrsf-l2-flsum_g18_s20220905_e20230927_v2-2-0.nc"
+
+df14 <- collect_variables_to_df(file_path14)
+df14_sum <- collect_variables_to_df(file_path14.5)
+df15 <- collect_variables_to_df(file_path15)
+df15_sum <- collect_variables_to_df(file_path15.5)
+df16 <- collect_variables_to_df(file_path16)
+df16_sum <- collect_variables_to_df(file_path16.5)
+df17 <- collect_variables_to_df(file_path17)
+df17_sum <- collect_variables_to_df(file_path17.5)
+df18 <- collect_variables_to_df(file_path18)
+df18_sum <- collect_variables_to_df(file_path18.5)
+
+# Now you can view the head of each data frame to verify
+head(df14)
+head(df14_sum)
+head(df15)
+head(df15_sum)
+head(df16)
+head(df16_sum)
+head(df17)
+head(df17_sum)
+head(df18)
+head(df18_sum)
+
+
+
+
+```
+
+```{r}
+merge_df14_df15_with_sum <- function(df, df_sum) {
+  
+  # Convert 'time' columns of both df and df_sum to datetime type 
+  df$corrected_time <- ymd_hms(df$corrected_time)
+  df_sum$corrected_time <- ymd_hms(df_sum$corrected_time)
+  
+  # Sort the dataframes based on corrected_time
+  df <- df %>% arrange(corrected_time)
+  df_sum <- df_sum %>% arrange(corrected_time)
+  
+  # Join the dataframes based on corrected_time
+  merged_df <- df %>%
+    full_join(df_sum, by = "corrected_time", suffix = c("", "_sum"))
+  
+  # List of columns present in both dataframes
+  common_columns <- intersect(names(df), names(df_sum))
+  
+  # Prioritize the columns from df_sum over df
+  for(col in common_columns) {
+    col_sum <- paste0(col, "_sum")
+    if(col_sum %in% names(merged_df)) {
+      merged_df[[col]] <- ifelse(!is.na(merged_df[[col_sum]]), merged_df[[col_sum]], merged_df[[col]])
+    }
+  }
+  
+  # Drop *_sum columns
+  to_remove <- grep("_sum$", names(merged_df))
+  merged_df <- merged_df[, -to_remove]
+  
+  return(merged_df)
+}
+
+# test_merge <- merge_df14_df15_with_sum(df14, df14_sum)
+# View(test_merge)
+# 
+# head(test_merge)
+
+
+```
+
+```{r}
+merge_df_with_sum <- function(df, df_sum) {
+  
+  # Convert 'time' columns of both df and df_sum to datetime type 
+  df$corrected_time <- ymd_hms(df$corrected_time)
+  df_sum$corrected_time <- ymd_hms(df_sum$corrected_time)
+  
+  # Sort the dataframes based on corrected_time
+  df <- df %>% arrange(corrected_time)
+  df_sum <- df_sum %>% arrange(corrected_time)
+  
+  # Join the dataframes based on corrected_time
+  merged_df <- df %>%
+    full_join(df_sum, by = "corrected_time", suffix = c("", "_sum"))
+  
+  # List of columns to prioritize
+  columns_to_prioritize <- c("status", "xrsa_flux", "xrsa_flux_observed", 
+                             "xrsa_flux_electrons", "xrsb_flux", "xrsb_flux_observed", 
+                             "xrsb_flux_electrons")
+  
+  for(col in columns_to_prioritize) {
+    col_sum <- paste0(col, "_sum")
+    if(col_sum %in% names(merged_df)) {
+      merged_df[[col]] <- ifelse(!is.na(merged_df[[col_sum]]), merged_df[[col_sum]], merged_df[[col]])
+    }
+  }
+  
+  # Drop *_sum columns
+  to_remove <- grep("_sum$", names(merged_df))
+  merged_df <- merged_df[, -to_remove]
+  
+  return(merged_df)
+}
+
+# test_merge2 <- merge_df_with_sum(df14, df14_sum)
+# View(test_merge2)
+# 
+# head(test_merge2)
+
+```
+
+```{r}
+# Number of unique 'corrected_time' values in df14 and df14_sum
+length(unique(df14$corrected_time))
+length(unique(df14_sum$corrected_time))
+
+# Number of matching 'corrected_time' values between df14 and df14_sum
+sum(df14$corrected_time %in% df14_sum$corrected_time)
+sum(df14_sum$corrected_time %in% df14$corrected_time)
+
+
+
+```
+
+```{r}
+# Merging the dataframes with their summaries
+
+merged_df14 <- merge_df14_df15_with_sum(df14, df14_sum)
+merged_df15 <- merge_df14_df15_with_sum(df15, df15_sum)
+
+merged_df16 <- merge_df_with_sum(df16, df16_sum)
+merged_df17 <- merge_df_with_sum(df17, df17_sum)
+merged_df18 <- merge_df_with_sum(df18, df18_sum)
+
+# Convert merged dataframes to data tables
+
+data_list <- list(
+  as.data.table(merged_df14), as.data.table(merged_df15), as.data.table(merged_df16), 
+  as.data.table(merged_df17), as.data.table(merged_df18)
+)
+
+# Initialize the merged data table with the first data table in the list
+merged_data <- data_list[[1]]
+
+# Merge the rest of the data tables in the list to the merged_data based on corrected_time
+for (i in 2:length(data_list)) {
+  merged_data <- merged_data[data_list[[i]], on = .(corrected_time), nomatch = 0L]
+}
+
+# Sort by 'corrected_time'
+setorder(merged_data, corrected_time)
+
+# View the result
+View(merged_data[1:2000, ])
+
+
+
+
+
+```
+
+```{r}
+# Now remove correlated variables based on Solar_Flares2.0.Rmd
+
+# Ensure we are only applying sd() to numeric or integer columns
+numeric_columns <- names(merged_data)[sapply(merged_data, is.numeric)]
+non_constant_columns <- numeric_columns[sapply(merged_data[, ..numeric_columns], function(col) { sd(col, na.rm = TRUE) != 0 })]
+
+# Create a subset of the dataframe without 'time' and 'corrected_time' columns
+data_to_correlate <- merged_data1[, setdiff(names(merged_data1), c('time', 'corrected_time')), with = FALSE]
+
+# Compute the correlation matrix
+cor_matrix <- cor(data_to_correlate, use="complete.obs", method="pearson")
+
+
+# Melt the correlation matrix for ggplot
+cor_melted <- melt(cor_matrix)
+
+# Visualize the correlation matrix
+ggplot(data = cor_melted, aes(x=Var1, y=Var2)) +
+  geom_tile(aes(fill=value), color="white") + 
+  geom_text(aes(label=sprintf("%.2f", value)), vjust=1) +
+  theme_minimal() +
+  theme(axis.text.x=element_text(angle=45, hjust=1)) +
+  labs(fill="Correlation") +
+  scale_fill_gradient2(low="blue", mid="white", high="red", midpoint=0, limit=c(-1,1), space="Lab", name="Pearson\nCorrelation")
+
+num_entries <- nrow(cor_matrix) * ncol(cor_matrix)
+
+options(max.print=num_entries)
+
+print(cor_matrix)
+
+
+```
+
+```{r}
+# Identify high correlation
+
+identify_high_correlations <- function(cor_matrix, threshold = 0.9) {
+  # Get pairs of variables that have a high correlation
+  high_cor_pairs <- which(abs(cor_matrix) >= threshold & cor_matrix != 1, arr.ind = TRUE)
+  
+  # Create a data frame of the results
+  result_df <- data.frame(
+    Var1 = rownames(cor_matrix)[high_cor_pairs[, 1]],
+    Var2 = rownames(cor_matrix)[high_cor_pairs[, 2]],
+    Correlation = cor_matrix[high_cor_pairs]
+  )
+  
+  # Remove duplicates (e.g., if x-y is there, we don't need y-x)
+  result_df <- result_df[!duplicated(t(apply(result_df[c('Var1', 'Var2')], 1, sort))), ]
+  
+  return(result_df)
+}
+
+# Find pairs of variables with high correlations
+high_correlations <- identify_high_correlations(cor_matrix, 0.9)
+
+print(high_correlations)
+
+
+
+```
+
+```{r}
+# Drop some correlated columns
+
+merged_data <- merged_data %>%
+  select(-xrsa_flux_observed, -xrsb_flux_observed, -xrsb_flag)
+
+
+```
+
+
+```{r}
+
+View(merged_data[1:2000, ])
+
+
+write.csv(merged_data, "merged_data.csv", row.names = FALSE)
+write.csv(merged_data, "/Users/raymondblahajr/Desktop/PDS/Full_Data/merged_data.csv", row.names = FALSE)
+
+
+```
