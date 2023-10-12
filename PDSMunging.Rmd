@@ -10,7 +10,6 @@ library(ncdf4)
 library(DataExplorer)
 library(plotly)
 library(tidyverse)
-library(plotly)
 library(data.table)
 ```
 
@@ -41,31 +40,6 @@ for(i in 13:18){
 
 
 ### Function Building
-
-```{r}
-## Testing for every GOES
-file <- GOES15
-time <- file$dim$time$vals
-time_unit_flux <- file$dim$time$units
-print(time_unit_flux)
-time_proper <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (time)
-  
-var_names <- names(file$var)
-print(var_names)
-  
-for (i in var_names){
-  name <- paste("", i, sep = "")
-  assign(name, ncvar_get(file, varid = i))
-}
-  
-  
-file_df <- data.frame(lapply(mget(var_names), as.vector))
-file_df <- cbind(time_proper, file_df)
-  
-# View(file_df)
-
-sum(is.na(file_df$xrsa_flux))/length(file_df$xrsa_flux)
-```
 
 
 ```{r}
@@ -331,64 +305,30 @@ merge_df_18_peaks <- left_join(na.omit(df_goes_18, cols = "xrsa_flux"),
 length(unique(merge_df_18_peaks$time))
 ```
 
-### merging all dfs
+## Merging Data
 
+### Merging for Peaks
 
-
-```{r}
-l1 <- min(merge_df_18_peaks$time)
-l2 <- min(merge_df_17_peaks$time)
-u1 <- max(merge_df_18_peaks$time)
-u2 <- max(merge_df_17_peaks$time)
-
-
-```
 
 
 
 ```{r}
-merge_list <- rbind(merge_df_18_peaks, merge_df_17_peaks)
-duplicate_merge_peaks <- which(duplicated(merge_list))
-
 merge_list <-  list(merge_df_18_peaks, merge_df_17_peaks, merge_df_16_peaks, 
                     merge_df_15_peaks, merge_df_14_peaks, merge_df_13_peaks)
 
 df_merge_peaks <- do.call(rbind, merge_list)
-
-duplicate_merge_peaks <- which(duplicated(df_merge_peaks))
+duplicate_times <- which(duplicated(df_merge_peaks$time))
+df_merge_peaks_final <- df_merge_peaks[-duplicate_times,] %>% arrange(time)
 
 ```
-
 
 ```{r}
-t1 <- data.frame(
-  time = c(1, 2, 3),
-  value = c(10, 20, 30)
-)
-
-t2 <- data.frame(
-  time = c(2, 3, 4),
-  value = c(25, 35, 45)
-)
-
-# Merge the dataframes based on time with priority
-result_df <- bind_rows(t1, t2) %>%
-  arrange(ascd(time))
-
-result_df <- full_join(merge_df_13_peaks, merge_df_18_peaks, by = join_by("time")) 
-
-%>%
-  mutate(value = coalesce(value.y, value.x)) %>%
-  select(-value.x, -value.y)
-
-
-# Display the result dataframe
-print(result_df)
+fwrite(df_merge_peaks_final, "/Users/welpp/Desktop/Practical Data Science/Data/Data Main/goes_13to18.csv")
 ```
 
 
 
-## Merging all Peaks
+## Merging all versions
 
 ```{r}
 merge_df_13 <- left_join(df_goes_13, df_flare_13, by = join_by(time, xrsb_flux))
@@ -426,5 +366,54 @@ for (i in 17:13) {
 }
 ```
 
+# Write Data out
+
+
+```{r}
+fwrite(merge_df_16_peaks, "/Users/welpp/Desktop/Practical Data Science/Data/Data Main/goes16.csv")
+```
+
+
+# Quick data
+
+
+```{r}
+## For goes 16
+gp1 <- ggplot(merge_df_18_peaks, aes(x = time)) +
+  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
+  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
+  theme_minimal() + scale_y_log10()
+
+gp1
+
+gp2 <- ggplot(merge_df_18_peaks, aes(x = time)) +
+  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
+  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
+  theme_minimal()
+
+gp2
+
+
+## for all data
+gp5 <- ggplot(df_merge_peaks_final, aes(x=time, y=xrsa_flux)) +
+  theme_minimal() + scale_y_log10()
+
+gp5
+
+gp3 <- ggplot(df_merge_peaks_final, aes(x = time)) +
+  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
+  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
+  theme_minimal() + scale_y_log10()
+
+gp3
+
+gp4 <- ggplot(merge_df_18_peaks, aes(x = time)) +
+  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
+  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
+  theme_minimal()
+
+gp5
+
+```
 
 
