@@ -1,0 +1,430 @@
+---
+title: "PDS Data Munging"
+author: "Paul"
+date: "2023-10-05"
+output: pdf_document
+---
+
+```{r}
+library(ncdf4)
+library(DataExplorer)
+library(plotly)
+library(tidyverse)
+library(plotly)
+library(data.table)
+```
+
+
+# Munging
+
+## 1-min Summary
+
+```{r}
+# Set the directory path
+directory_path <- "/Users/welpp/Desktop/Practical Data Science/Data/Data Main/1minSum"
+
+# Get a list of all files in the directory
+file_list <- list.files(path = directory_path)
+
+# Print the list of file names
+print(file_list)
+```
+
+```{r}
+# Open ncdf4 data
+for(i in 13:18){
+  data_name <- paste0("GOES",i)
+  data_path <- paste0(directory_path,"/",file_list[i-7])
+  assign(data_name, nc_open(data_path))
+}
+```
+
+
+### Function Building
+
+```{r}
+## Testing for every GOES
+file <- GOES15
+time <- file$dim$time$vals
+time_unit_flux <- file$dim$time$units
+print(time_unit_flux)
+time_proper <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (time)
+  
+var_names <- names(file$var)
+print(var_names)
+  
+for (i in var_names){
+  name <- paste("", i, sep = "")
+  assign(name, ncvar_get(file, varid = i))
+}
+  
+  
+file_df <- data.frame(lapply(mget(var_names), as.vector))
+file_df <- cbind(time_proper, file_df)
+  
+# View(file_df)
+
+sum(is.na(file_df$xrsa_flux))/length(file_df$xrsa_flux)
+```
+
+
+```{r}
+## function for grabbing 1min summary
+make_df_1min <- function(file){
+  time1 <- file$dim$time$vals
+  time <- as.POSIXct(time1, origin="2000-01-01", tz="UTC")
+  
+  var_names <- names(file$var)[c(1,4)]
+  
+  for (i in var_names){
+    name <- paste("", i, sep = "")
+    assign(name, ncvar_get(file, varid = i))
+  }
+  
+  
+  file_df <- data.frame(lapply(mget(var_names), as.vector))
+  file_df <- cbind(time, file_df)
+  
+  return(file_df)
+}
+```
+
+
+### Data Loading
+
+```{r}
+df_goes_13 <- make_df_1min(GOES13)
+df_goes_14 <- make_df_1min(GOES14)
+df_goes_15 <- make_df_1min(GOES15)
+df_goes_16 <- make_df_1min(GOES16)
+df_goes_17 <- make_df_1min(GOES17)
+df_goes_18 <- make_df_1min(GOES18)
+
+# View(df_goes_13)
+# View(df_goes_14)
+# View(df_goes_15)
+# View(df_goes_16)
+# View(df_goes_17)
+# View(df_goes_18)
+```
+
+
+## Flare Sum
+
+```{r}
+# Set the directory path
+directory_path <- "/Users/welpp/Desktop/Practical Data Science/Data/Data Main/FlareSum"
+
+# Get a list of all files in the directory
+file_list <- list.files(path = directory_path)
+
+# Print the list of file names
+print(file_list)
+```
+
+```{r}
+# Open ncdf4 data
+for(i in 13:18){
+  data_name <- paste0("FlareGOES",i)
+  data_path <- paste0(directory_path,"/",file_list[i-12])
+  assign(data_name, nc_open(data_path))
+}
+```
+
+```{r}
+## Testing for flare
+file <- FlareGOES18
+time <- file$dim$time$vals
+time_unit_flux <- file$dim$time$units
+print(time_unit_flux)
+time_proper <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (time)
+  
+var_names <- names(file$var)
+print(var_names)
+  
+for (i in var_names){
+  name <- paste("", i, sep = "")
+  assign(name, ncvar_get(file, varid = i))
+}
+  
+  
+file_df <- data.frame(lapply(mget(var_names), as.vector))
+file_df <- cbind(time_proper, file_df)
+  
+View(file_df)
+
+## testing and verifying
+file_df %>% filter(time_proper == "2022-11-24 06:23:00 UTC")
+file_df[1780,1]
+df_goes_18 %>% filter(time_proper == "2022-11-24 06:23:00")
+df_goes_18[119904,1]
+```
+
+
+### Function Building
+
+```{r}
+## function for grabbing flare summary
+make_df_flare <- function(file){
+  time1 <- file$dim$time$vals
+  time <- as.POSIXct(time1, origin="2000-01-01", tz="UTC")
+  
+  var_names <- names(file$var)[c(1,2,4,6)]
+  
+  for (i in var_names){
+    name <- paste("", i, sep = "")
+    assign(name, ncvar_get(file, varid = i))
+  }
+  
+  
+  file_df <- data.frame(lapply(mget(var_names), as.vector))
+  file_df <- cbind(time, file_df)
+  
+  return(file_df)
+}
+```
+
+### Data Loading
+
+```{r}
+df_flare_13 <- make_df_flare(FlareGOES13)
+df_flare_14 <- make_df_flare(FlareGOES14)
+df_flare_15 <- make_df_flare(FlareGOES15)
+df_flare_16 <- make_df_flare(FlareGOES16)
+df_flare_17 <- make_df_flare(FlareGOES17)
+df_flare_18 <- make_df_flare(FlareGOES18)
+
+# View(df_flare_13)
+# View(df_flare_14)
+# View(df_flare_15)
+# View(df_flare_16)
+# View(df_flare_17)
+# View(df_flare_18)
+```
+
+## Merging Summary and Flare
+
+```{r}
+## mystery with time settings
+df_flare_18 %>% filter(round(time, "secs") == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
+df_goes_18 %>% filter(round(time, "secs") == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
+
+df_flare_18 %>% filter(time == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
+df_goes_18 %>% filter(time == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
+
+df_flare_18 %>% filter(time == "2022-12-10 06:11:00")
+df_flare_18 %>% filter(time <= "2022-12-10 06:12:00" & time >= "2022-12-10 06:10:00")
+df_goes_18 %>% filter(time == "2022-12-10 18:11:00")
+
+lb1 <- tibble(head(df_flare_18))
+
+lb1 %>% filter(time == "2022-09-08 04:00:00")
+
+sum(df_flare_18$time <= "2022-12-10 18:11:30")
+sum(df_flare_18$time >= "2022-12-10 18:10:30")
+
+df_flare_18[2146,]
+df_goes_18[143652,]
+
+class(df_flare_18[2146,1])
+class(df_goes_18[143652,1])
+
+df_flare_18[2146,1] == df_goes_18[143652,1]
+
+tz(df_flare_18[2146,1])
+tz(df_goes_18[143652,1])
+
+dim(df_flare_18)
+dim(df_goes_18)
+```
+
+### Checking duplicates
+
+```{r}
+check_duplicates <- function(df){
+  check_dup <- which(duplicated(df$time))
+  checking_sized <- unique(c(sapply(check_dup, function(x) seq(x-1,x+1))))
+  View(df[checking_sized,])
+}
+```
+
+
+```{r}
+
+check_duplicates(df_flare_18)
+
+checking_dup <- which(duplicated(df_flare_18$time))
+
+checking_sized <- unique(sort(c(sapply(checking_dup, function(x) seq(x - 1, x)),
+                   sapply(checking_dup, function(x) seq(x, x + 1)))))
+
+checking_sized
+
+View(df_flare_18[checking_sized,])
+
+test1 <- left_join(df_goes_18, df_flare_18, by = "time")
+test2 <- full_join(df_goes_18, df_flare_18, by = "time")
+
+dim(test1)
+dim(test2)
+dim(df_goes_18)
+test1[143653,]
+
+sum(is.na(df_goes_18$xrsa_flux))/length(df_goes_18$xrsa_flux)
+sum(is.na(test1$xrsa_flux))/length(test1$xrsa_flux)
+
+sum(is.na(test1$flare_class))/length(test1$flare_class)
+
+1-dim(df_flare_18)[1]/dim(df_goes_18)[1]
+```
+
+## Flare for Peaks Only
+
+```{r}
+df_flare_13_peaks <- df_flare_13 %>% filter(status == "EVENT_PEAK")
+df_flare_14_peaks <- df_flare_14 %>% filter(status == "EVENT_PEAK")
+df_flare_15_peaks <- df_flare_15 %>% filter(status == "EVENT_PEAK")
+df_flare_16_peaks <- df_flare_16 %>% filter(status == "EVENT_PEAK")
+df_flare_17_peaks <- df_flare_17 %>% filter(status == "EVENT_PEAK")
+df_flare_18_peaks <- df_flare_18 %>% filter(status == "EVENT_PEAK")
+
+## checking for duplicates
+length(unique(df_flare_18_peaks$time))
+```
+
+### Merging flare for peaks
+
+```{r}
+# test1 <- na.omit(df_goes_13, cols = "xrsa_flux")
+
+merge_df_13_peaks <- left_join(na.omit(df_goes_13, cols = "xrsa_flux"), 
+                               df_flare_13_peaks, 
+                               by = join_by(time)) %>% mutate(Sat = 13) %>%
+  select(-xrsb_flux.y, -flare_counter) %>% rename(xrsb_flux = "xrsb_flux.x")
+
+merge_df_14_peaks <- left_join(na.omit(df_goes_14, cols = "xrsa_flux"), 
+                               df_flare_14_peaks, 
+                               by = join_by(time)) %>% mutate(Sat = 14) %>%
+  select(-xrsb_flux.y, -flare_counter) %>% rename(xrsb_flux = "xrsb_flux.x")
+
+merge_df_15_peaks <- left_join(na.omit(df_goes_15, cols = "xrsa_flux"), 
+                               df_flare_15_peaks, 
+                               by = join_by(time)) %>% mutate(Sat = 15) %>%
+  select(-xrsb_flux.y, -flare_counter) %>% rename(xrsb_flux = "xrsb_flux.x")
+
+merge_df_16_peaks <- left_join(na.omit(df_goes_16, cols = "xrsa_flux"),
+                               df_flare_16_peaks, 
+                               by = join_by(time)) %>% mutate(Sat = 16) %>%
+  select(-xrsb_flux.y, -flare_id) %>% rename(xrsb_flux = "xrsb_flux.x")
+
+merge_df_17_peaks <- left_join(na.omit(df_goes_17, cols = "xrsa_flux"),
+                               df_flare_17_peaks, 
+                               by = join_by(time)) %>% mutate(Sat = 17) %>%
+  select(-xrsb_flux.y, -flare_id) %>% rename(xrsb_flux = "xrsb_flux.x")
+
+merge_df_18_peaks <- left_join(na.omit(df_goes_18, cols = "xrsa_flux"),
+                               df_flare_18_peaks, 
+                               by = join_by(time)) %>% mutate(Sat = 18) %>%
+  select(-xrsb_flux.y, -flare_id) %>% rename(xrsb_flux = "xrsb_flux.x")
+
+## checking peaks
+length(unique(merge_df_18_peaks$time))
+```
+
+### merging all dfs
+
+
+
+```{r}
+l1 <- min(merge_df_18_peaks$time)
+l2 <- min(merge_df_17_peaks$time)
+u1 <- max(merge_df_18_peaks$time)
+u2 <- max(merge_df_17_peaks$time)
+
+
+```
+
+
+
+```{r}
+merge_list <- rbind(merge_df_18_peaks, merge_df_17_peaks)
+duplicate_merge_peaks <- which(duplicated(merge_list))
+
+merge_list <-  list(merge_df_18_peaks, merge_df_17_peaks, merge_df_16_peaks, 
+                    merge_df_15_peaks, merge_df_14_peaks, merge_df_13_peaks)
+
+df_merge_peaks <- do.call(rbind, merge_list)
+
+duplicate_merge_peaks <- which(duplicated(df_merge_peaks))
+
+```
+
+
+```{r}
+t1 <- data.frame(
+  time = c(1, 2, 3),
+  value = c(10, 20, 30)
+)
+
+t2 <- data.frame(
+  time = c(2, 3, 4),
+  value = c(25, 35, 45)
+)
+
+# Merge the dataframes based on time with priority
+result_df <- bind_rows(t1, t2) %>%
+  arrange(ascd(time))
+
+result_df <- full_join(merge_df_13_peaks, merge_df_18_peaks, by = join_by("time")) 
+
+%>%
+  mutate(value = coalesce(value.y, value.x)) %>%
+  select(-value.x, -value.y)
+
+
+# Display the result dataframe
+print(result_df)
+```
+
+
+
+## Merging all Peaks
+
+```{r}
+merge_df_13 <- left_join(df_goes_13, df_flare_13, by = join_by(time, xrsb_flux))
+merge_df_14 <- left_join(df_goes_14, df_flare_14, by = join_by(time, xrsb_flux))
+merge_df_15 <- left_join(df_goes_15, df_flare_15, by = join_by(time, xrsb_flux))
+merge_df_16 <- left_join(df_goes_16, df_flare_16, by = join_by(time, xrsb_flux))
+merge_df_17 <- left_join(df_goes_17, df_flare_17, by = join_by(time, xrsb_flux))
+merge_df_18 <- left_join(df_goes_18, df_flare_18, by = join_by(time, xrsb_flux))
+
+# merge_df_18[143653,]
+
+dim(merge_df_13)[1] + dim(merge_df_14)[1] + dim(merge_df_15)[1] + 
+  dim(merge_df_16)[1] +dim(merge_df_17)[1] + dim(merge_df_18)[1]
+
+merge_df_14[1,]
+
+merge_df_18$status
+```
+
+
+```{r}
+combined_df <- merge_df_18
+colnames(merge_df_16)
+colnames(merge_df_15)
+
+# Iterate over the remaining data frames from df_17 to df_13
+for (i in 17:13) {
+  next_df <- get(paste0("merge_df_", i))
+  
+  # Left join with the combined_df
+  combined_df <- full_join(combined_df, next_df, 
+                           join_by("time", "xrsa_flux", "xrsb_flux", "status", 
+                                   "flare_class", "flare_id"))
+  
+}
+```
+
+
+
