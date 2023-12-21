@@ -1,8 +1,3 @@
-# PDS
-
-Google Drive Data Storage: https://drive.google.com/drive/u/1/folders/1iFOMoC0tp1ZC5TYKtZnpKtcISvCDUAFu
-
-
 # PDS: Solar Flare Detection Using Machine Learning
 
 Raymond Blaha, Paul Hwang, David Nezelek
