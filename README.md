@@ -22,6 +22,9 @@ Solar flares have important implications with our solar system. We will attempt 
 
 *David Nezelek*
 - Project Management
+- Literature Review
+- Feature extraction computational algorithm
+- Flare analysis
 - Presentation Slides
 - Final Paper
 
@@ -43,4 +46,4 @@ This repository is broken up into folders based on focus.
 
 *Data* - Link to google drive: https://drive.google.com/drive/folders/1s-yTlgDNXA3VpdiMw6VrwFG0WDTREnb_?usp=drive_link
 
-*Presentations* - Link to google drive: https://drive.google.com/drive/folders/1Ct5E5UBtPsyY8oXjNH1aFva_iZNr5AU5?usp=drive_link
+*Presentations and literature reviews* - Link to google drive: https://drive.google.com/drive/folders/1Ct5E5UBtPsyY8oXjNH1aFva_iZNr5AU5?usp=drive_link
