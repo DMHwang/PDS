@@ -14,9 +14,9 @@ library(data.table)
 ```
 
 
-# Munging
+# Loading Data
 
-## 1-min Summary
+## 1-min Flux Summary
 
 ```{r}
 # Set the directory path
@@ -37,9 +37,6 @@ for(i in 13:18){
   assign(data_name, nc_open(data_path))
 }
 ```
-
-
-### Function Building
 
 
 ```{r}
@@ -63,9 +60,6 @@ make_df_1min <- function(file){
 }
 ```
 
-
-### Data Loading
-
 ```{r}
 df_goes_13 <- make_df_1min(GOES13)
 df_goes_14 <- make_df_1min(GOES14)
@@ -83,7 +77,7 @@ df_goes_18 <- make_df_1min(GOES18)
 ```
 
 
-## Flare Sum
+## Flare Summary
 
 ```{r}
 # Set the directory path
@@ -105,37 +99,6 @@ for(i in 13:18){
 }
 ```
 
-```{r}
-## Testing for flare
-file <- FlareGOES18
-time <- file$dim$time$vals
-time_unit_flux <- file$dim$time$units
-print(time_unit_flux)
-time_proper <- as.POSIXct("2000-01-01 12:00:00", tz="UTC") + (time)
-  
-var_names <- names(file$var)
-print(var_names)
-  
-for (i in var_names){
-  name <- paste("", i, sep = "")
-  assign(name, ncvar_get(file, varid = i))
-}
-  
-  
-file_df <- data.frame(lapply(mget(var_names), as.vector))
-file_df <- cbind(time_proper, file_df)
-  
-View(file_df)
-
-## testing and verifying
-file_df %>% filter(time_proper == "2022-11-24 06:23:00 UTC")
-file_df[1780,1]
-df_goes_18 %>% filter(time_proper == "2022-11-24 06:23:00")
-df_goes_18[119904,1]
-```
-
-
-### Function Building
 
 ```{r}
 ## function for grabbing flare summary
@@ -158,8 +121,6 @@ make_df_flare <- function(file){
 }
 ```
 
-### Data Loading
-
 ```{r}
 df_flare_13 <- make_df_flare(FlareGOES13)
 df_flare_14 <- make_df_flare(FlareGOES14)
@@ -176,83 +137,8 @@ df_flare_18 <- make_df_flare(FlareGOES18)
 # View(df_flare_18)
 ```
 
-## Merging Summary and Flare
 
-```{r}
-## mystery with time settings
-df_flare_18 %>% filter(round(time, "secs") == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
-df_goes_18 %>% filter(round(time, "secs") == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
-
-df_flare_18 %>% filter(time == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
-df_goes_18 %>% filter(time == as.POSIXct("2022-12-10 18:11:00", tz = "UTC"))
-
-df_flare_18 %>% filter(time == "2022-12-10 06:11:00")
-df_flare_18 %>% filter(time <= "2022-12-10 06:12:00" & time >= "2022-12-10 06:10:00")
-df_goes_18 %>% filter(time == "2022-12-10 18:11:00")
-
-lb1 <- tibble(head(df_flare_18))
-
-lb1 %>% filter(time == "2022-09-08 04:00:00")
-
-sum(df_flare_18$time <= "2022-12-10 18:11:30")
-sum(df_flare_18$time >= "2022-12-10 18:10:30")
-
-df_flare_18[2146,]
-df_goes_18[143652,]
-
-class(df_flare_18[2146,1])
-class(df_goes_18[143652,1])
-
-df_flare_18[2146,1] == df_goes_18[143652,1]
-
-tz(df_flare_18[2146,1])
-tz(df_goes_18[143652,1])
-
-dim(df_flare_18)
-dim(df_goes_18)
-```
-
-### Checking duplicates
-
-```{r}
-check_duplicates <- function(df){
-  check_dup <- which(duplicated(df$time))
-  checking_sized <- unique(c(sapply(check_dup, function(x) seq(x-1,x+1))))
-  View(df[checking_sized,])
-}
-```
-
-
-```{r}
-
-check_duplicates(df_flare_18)
-
-checking_dup <- which(duplicated(df_flare_18$time))
-
-checking_sized <- unique(sort(c(sapply(checking_dup, function(x) seq(x - 1, x)),
-                   sapply(checking_dup, function(x) seq(x, x + 1)))))
-
-checking_sized
-
-View(df_flare_18[checking_sized,])
-
-test1 <- left_join(df_goes_18, df_flare_18, by = "time")
-test2 <- full_join(df_goes_18, df_flare_18, by = "time")
-
-dim(test1)
-dim(test2)
-dim(df_goes_18)
-test1[143653,]
-
-sum(is.na(df_goes_18$xrsa_flux))/length(df_goes_18$xrsa_flux)
-sum(is.na(test1$xrsa_flux))/length(test1$xrsa_flux)
-
-sum(is.na(test1$flare_class))/length(test1$flare_class)
-
-1-dim(df_flare_18)[1]/dim(df_goes_18)[1]
-```
-
-## Flare for Peaks Only
+## Solar Flare Peak Selection
 
 ```{r}
 df_flare_13_peaks <- df_flare_13 %>% filter(status == "EVENT_PEAK")
@@ -261,16 +147,13 @@ df_flare_15_peaks <- df_flare_15 %>% filter(status == "EVENT_PEAK")
 df_flare_16_peaks <- df_flare_16 %>% filter(status == "EVENT_PEAK")
 df_flare_17_peaks <- df_flare_17 %>% filter(status == "EVENT_PEAK")
 df_flare_18_peaks <- df_flare_18 %>% filter(status == "EVENT_PEAK")
-
-## checking for duplicates
-length(unique(df_flare_18_peaks$time))
 ```
 
-### Merging flare for peaks
+# Merging Solar Data with Peaks
+
+## Merging for each Satellites
 
 ```{r}
-# test1 <- na.omit(df_goes_13, cols = "xrsa_flux")
-
 merge_df_13_peaks <- left_join(na.omit(df_goes_13, cols = "xrsa_flux"), 
                                df_flare_13_peaks, 
                                by = join_by(time)) %>% mutate(Sat = 13) %>%
@@ -301,16 +184,10 @@ merge_df_18_peaks <- left_join(na.omit(df_goes_18, cols = "xrsa_flux"),
                                by = join_by(time)) %>% mutate(Sat = 18) %>%
   select(-xrsb_flux.y, -flare_id) %>% rename(xrsb_flux = "xrsb_flux.x")
 
-## checking peaks
-length(unique(merge_df_18_peaks$time))
 ```
 
-## Merging Data
 
-### Merging for Peaks
-
-
-
+## Merging all Satellites
 
 ```{r}
 merge_list <-  list(merge_df_18_peaks, merge_df_17_peaks, merge_df_16_peaks, 
@@ -319,101 +196,13 @@ merge_list <-  list(merge_df_18_peaks, merge_df_17_peaks, merge_df_16_peaks,
 df_merge_peaks <- do.call(rbind, merge_list)
 duplicate_times <- which(duplicated(df_merge_peaks$time))
 df_merge_peaks_final <- df_merge_peaks[-duplicate_times,] %>% arrange(time)
-
+df_merge_peaks_final$status <- ifelse(!is.na(df_merge_peaks_final$status), 1, 0)
 ```
 
 ```{r}
+# Write out 
 fwrite(df_merge_peaks_final, "/Users/welpp/Desktop/Practical Data Science/Data/Data Main/goes_13to18.csv")
 ```
 
-
-
-## Merging all versions
-
-```{r}
-merge_df_13 <- left_join(df_goes_13, df_flare_13, by = join_by(time, xrsb_flux))
-merge_df_14 <- left_join(df_goes_14, df_flare_14, by = join_by(time, xrsb_flux))
-merge_df_15 <- left_join(df_goes_15, df_flare_15, by = join_by(time, xrsb_flux))
-merge_df_16 <- left_join(df_goes_16, df_flare_16, by = join_by(time, xrsb_flux))
-merge_df_17 <- left_join(df_goes_17, df_flare_17, by = join_by(time, xrsb_flux))
-merge_df_18 <- left_join(df_goes_18, df_flare_18, by = join_by(time, xrsb_flux))
-
-# merge_df_18[143653,]
-
-dim(merge_df_13)[1] + dim(merge_df_14)[1] + dim(merge_df_15)[1] + 
-  dim(merge_df_16)[1] +dim(merge_df_17)[1] + dim(merge_df_18)[1]
-
-merge_df_14[1,]
-
-merge_df_18$status
-```
-
-
-```{r}
-combined_df <- merge_df_18
-colnames(merge_df_16)
-colnames(merge_df_15)
-
-# Iterate over the remaining data frames from df_17 to df_13
-for (i in 17:13) {
-  next_df <- get(paste0("merge_df_", i))
-  
-  # Left join with the combined_df
-  combined_df <- full_join(combined_df, next_df, 
-                           join_by("time", "xrsa_flux", "xrsb_flux", "status", 
-                                   "flare_class", "flare_id"))
-  
-}
-```
-
-# Write Data out
-
-
-```{r}
-fwrite(merge_df_16_peaks, "/Users/welpp/Desktop/Practical Data Science/Data/Data Main/goes16.csv")
-```
-
-
-# Quick data
-
-
-```{r}
-## For goes 16
-gp1 <- ggplot(merge_df_18_peaks, aes(x = time)) +
-  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
-  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
-  theme_minimal() + scale_y_log10()
-
-gp1
-
-gp2 <- ggplot(merge_df_18_peaks, aes(x = time)) +
-  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
-  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
-  theme_minimal()
-
-gp2
-
-
-## for all data
-gp5 <- ggplot(df_merge_peaks_final, aes(x=time, y=xrsa_flux)) +
-  theme_minimal() + scale_y_log10()
-
-gp5
-
-gp3 <- ggplot(df_merge_peaks_final, aes(x = time)) +
-  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
-  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
-  theme_minimal() + scale_y_log10()
-
-gp3
-
-gp4 <- ggplot(merge_df_18_peaks, aes(x = time)) +
-  geom_line(aes(y=xrsa_flux), color = "red", alpha = 0.2) +
-  geom_line(aes(y=xrsb_flux), color = "blue", alpha =0.2) +
-  theme_minimal()
-
-gp5
-
-```
 
 
