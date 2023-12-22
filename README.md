@@ -12,6 +12,7 @@ Solar flares have important implications with our solar system. We will attempt 
 - 
 
 *Paul Hwang*
+
 - Data Preprocessing
 - Time Series Model Building
 
